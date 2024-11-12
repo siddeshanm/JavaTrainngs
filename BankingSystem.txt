@@ -1,0 +1,200 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>BankingSystem</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <dependencies>
+        <!-- Spring JDBC -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+            <version>5.3.29</version>
+        </dependency>
+
+        <!-- PostgreSQL JDBC Driver -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.6.0</version>
+        </dependency>
+
+        <!-- Spring Core -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.3.29</version>
+        </dependency>
+    </dependencies>
+</project>
+
+
+# Database configuration
+jdbc.url=jdbc:postgresql://localhost:5432/banking_system
+jdbc.username=your_db_username
+jdbc.password=your_db_password
+jdbc.driverClassName=org.postgresql.Driver
+
+CREATE TABLE accounts (
+    id SERIAL PRIMARY KEY,
+    account_number VARCHAR(20) UNIQUE NOT NULL,
+    balance DECIMAL(15, 2) DEFAULT 0.00
+);
+
+INSERT INTO accounts (account_number, balance) VALUES ('1234567890', 500.00);
+INSERT INTO accounts (account_number, balance) VALUES ('0987654321', 1000.00);
+
+
+
+package com.example.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import javax.sql.DataSource;
+import java.util.Properties;
+
+@Configuration
+@ComponentScan(basePackages = "com.example")
+public class AppConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.postgresql.Driver");
+        dataSource.setUrl("jdbc:postgresql://localhost:5432/banking_system");
+        dataSource.setUsername("your_db_username");
+        dataSource.setPassword("your_db_password");
+        return dataSource;
+    }
+
+    @Bean
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+}
+
+
+package com.example.dao;
+
+import com.example.model.Account;
+
+public interface AccountDAO {
+    void createAccount(String accountNumber, double initialBalance);
+    void transferMoney(String fromAccount, String toAccount, double amount);
+    double getBalance(String accountNumber);
+}
+
+
+package com.example.dao.impl;
+
+import com.example.dao.AccountDAO;
+import com.example.model.Account;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import javax.sql.DataSource;
+
+@Repository
+public class AccountDAOImpl implements AccountDAO {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public AccountDAOImpl(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Override
+    public void createAccount(String accountNumber, double initialBalance) {
+        String sql = "INSERT INTO accounts (account_number, balance) VALUES (?, ?)";
+        jdbcTemplate.update(sql, accountNumber, initialBalance);
+    }
+
+    @Override
+    public void transferMoney(String fromAccount, String toAccount, double amount) {
+        // Withdraw from source account
+        String withdrawSQL = "UPDATE accounts SET balance = balance - ? WHERE account_number = ?";
+        jdbcTemplate.update(withdrawSQL, amount, fromAccount);
+
+        // Deposit to destination account
+        String depositSQL = "UPDATE accounts SET balance = balance + ? WHERE account_number = ?";
+        jdbcTemplate.update(depositSQL, amount, toAccount);
+    }
+
+    @Override
+    public double getBalance(String accountNumber) {
+        String sql = "SELECT balance FROM accounts WHERE account_number = ?";
+        return jdbcTemplate.queryForObject(sql, new Object[]{accountNumber}, Double.class);
+    }
+}
+
+
+package com.example.model;
+
+public class Account {
+    private int id;
+    private String accountNumber;
+    private double balance;
+
+    // Getters and Setters
+    // Constructor
+}
+
+
+package com.example.service;
+
+import com.example.dao.AccountDAO;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AccountService {
+
+    private final AccountDAO accountDAO;
+
+    @Autowired
+    public AccountService(AccountDAO accountDAO) {
+        this.accountDAO = accountDAO;
+    }
+
+    public void createAccount(String accountNumber, double initialBalance) {
+        accountDAO.createAccount(accountNumber, initialBalance);
+    }
+
+    public void transferMoney(String fromAccount, String toAccount, double amount) {
+        accountDAO.transferMoney(fromAccount, toAccount, amount);
+    }
+
+    public double getBalance(String accountNumber) {
+        return accountDAO.getBalance(accountNumber);
+    }
+}
+
+
+package com.example;
+
+import com.example.config.AppConfig;
+import com.example.service.AccountService;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class MainApplication {
+
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        AccountService accountService = context.getBean(AccountService.class);
+
+        // Example usage
+        accountService.createAccount("1111111111", 500.00);
+        accountService.transferMoney("1111111111", "1234567890", 200.00);
+        double balance = accountService.getBalance("1111111111");
+
+        System.out.println("Balance: " + balance);
+
+        context.close();
+    }
+}
