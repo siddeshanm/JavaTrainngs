@@ -1,0 +1,80 @@
+// UserRepository.java
+public interface UserRepository {
+    User findUserById(int id);
+    void saveUser(User user);
+}
+
+// UserService.java
+public class UserService {
+    private UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    public User getUser(int id) {
+        return userRepository.findUserById(id);
+    }
+
+    public void addUser(User user) {
+        userRepository.saveUser(user);
+    }
+}
+
+// User.java
+public class User {
+    private int id;
+    private String name;
+
+    // Constructors, getters, setters
+}
+
+
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+public class UserServiceTest {
+
+    @Mock
+    private UserRepository userRepository;  // Mocked dependency
+
+    @InjectMocks
+    private UserService userService;  // Service with the mocked dependency injected
+
+    @BeforeEach
+    public void setup() {
+        MockitoAnnotations.openMocks(this);  // Initialize mocks
+    }
+
+    @Test
+    public void testGetUser() {
+        // Arrange: define mock behavior
+        User user = new User(1, "John Doe");
+        when(userRepository.findUserById(1)).thenReturn(user);
+
+        // Act: call the method
+        User result = userService.getUser(1);
+
+        // Assert: verify result and behavior
+        assertEquals("John Doe", result.getName());
+        verify(userRepository, times(1)).findUserById(1);  // Verify method call
+    }
+
+    @Test
+    public void testAddUser() {
+        // Arrange
+        User user = new User(2, "Jane Doe");
+
+        // Act
+        userService.addUser(user);
+
+        // Verify the interaction with the mock
+        verify(userRepository, times(1)).saveUser(user);
+    }
+}
